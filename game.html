@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Neon Snake — one prompt, one game</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #07070f; height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center;
+         font-family: "DejaVu Sans Mono", monospace; color: #e8e8f0; }
+  #hud { width: 960px; display: flex; justify-content: space-between; align-items: baseline;
+         padding: 6px 4px 10px; font-size: 26px; letter-spacing: 1px; }
+  #hud .title { color: #39ff88; font-weight: bold; text-shadow: 0 0 12px #39ff88; }
+  #hud .score { color: #ff3df0; font-weight: bold; text-shadow: 0 0 12px #ff3df0; }
+  #hud .hint { color: #8a8aa0; font-size: 16px; }
+  canvas { background: #0a0a18; border: 2px solid #23233d; border-radius: 10px;
+           box-shadow: 0 0 40px rgba(57, 255, 136, 0.12); display: block; }
+</style>
+</head>
+<body>
+  <div id="hud">
+    <span class="title">NEON SNAKE</span>
+    <span class="hint">Arrows / WASD &middot; R to restart</span>
+    <span class="score">SCORE <span id="score">0</span></span>
+  </div>
+  <canvas id="game" width="960" height="600"></canvas>
+<script>
+"use strict";
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const CELL = 30, COLS = 32, ROWS = 20;
+let snake, dir, nextDir, orb, score, speed, alive, timer;
+
+function reset() {
+  snake = [{x: 8, y: 10}, {x: 7, y: 10}, {x: 6, y: 10}];
+  dir = {x: 1, y: 0}; nextDir = dir;
+  score = 0; speed = 150; alive = true;
+  scoreEl.textContent = "0";
+  placeOrb();
+  clearInterval(timer);
+  timer = setInterval(tick, speed);
+}
+
+function placeOrb() {
+  while (true) {
+    const o = {x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS)};
+    if (!snake.some(s => s.x === o.x && s.y === o.y)) { orb = o; return; }
+  }
+}
+
+function tick() {
+  dir = nextDir;
+  const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+  if (head.x < 0 || head.y < 0 || head.x >= COLS || head.y >= ROWS ||
+      snake.some(s => s.x === head.x && s.y === head.y)) {
+    alive = false; clearInterval(timer); draw(); return;
+  }
+  snake.unshift(head);
+  if (head.x === orb.x && head.y === orb.y) {
+    score++; scoreEl.textContent = String(score);
+    speed = Math.max(70, speed - 6);
+    clearInterval(timer); timer = setInterval(tick, speed);
+    placeOrb();
+  } else {
+    snake.pop();
+  }
+  draw();
+}
+
+function draw() {
+  ctx.fillStyle = "#0a0a18";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // grid dots
+  ctx.fillStyle = "rgba(255,255,255,0.05)";
+  for (let x = 0; x < COLS; x++) for (let y = 0; y < ROWS; y++) {
+    ctx.fillRect(x * CELL + 14, y * CELL + 14, 2, 2);
+  }
+  // orb
+  const ox = orb.x * CELL + CELL / 2, oy = orb.y * CELL + CELL / 2;
+  ctx.save();
+  ctx.shadowColor = "#ff3df0"; ctx.shadowBlur = 22;
+  ctx.fillStyle = "#ff3df0";
+  ctx.beginPath(); ctx.arc(ox, oy, 10, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath(); ctx.arc(ox, oy, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // snake
+  snake.forEach((s, i) => {
+    const t = 1 - i / snake.length;
+    ctx.save();
+    ctx.shadowColor = "#39ff88"; ctx.shadowBlur = 16;
+    ctx.fillStyle = i === 0 ? "#a4ffc4" : `rgba(57,255,136,${0.45 + 0.55 * t})`;
+    const px = s.x * CELL + 3, py = s.y * CELL + 3;
+    ctx.beginPath();
+    ctx.roundRect(px, py, CELL - 6, CELL - 6, 8);
+    ctx.fill();
+    ctx.restore();
+  });
+  if (!alive) {
+    ctx.fillStyle = "rgba(7,7,15,0.78)";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#ff3df0";
+    ctx.font = "bold 56px 'DejaVu Sans Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.shadowColor = "#ff3df0"; ctx.shadowBlur = 24;
+    ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 10);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#e8e8f0";
+    ctx.font = "28px 'DejaVu Sans Mono', monospace";
+    ctx.fillText("Score: " + score + "  —  press R to restart", canvas.width / 2, canvas.height / 2 + 44);
+  }
+}
+
+const KEYS = {
+  ArrowUp: {x: 0, y: -1}, KeyW: {x: 0, y: -1},
+  ArrowDown: {x: 0, y: 1}, KeyS: {x: 0, y: 1},
+  ArrowLeft: {x: -1, y: 0}, KeyA: {x: -1, y: 0},
+  ArrowRight: {x: 1, y: 0}, KeyD: {x: 1, y: 0}
+};
+window.addEventListener("keydown", (e) => {
+  if (e.code === "KeyR") { reset(); return; }
+  const d = KEYS[e.code];
+  if (d) {
+    e.preventDefault();
+    if (d.x !== -dir.x || d.y !== -dir.y) nextDir = d;
+  }
+});
+reset();
+</script>
+</body>
+</html>
